@@ -4,6 +4,12 @@ An end-to-end automated machine learning (AutoML) pipeline designed to take you 
 
 ---
 
+## 🖼️ UI Preview
+
+![AutoML-Pipeline UI](assets/dashboard.png)
+
+---
+
 ## 📋 Workflow Overview
 
 1. 📁 **Data Upload**  
