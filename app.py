@@ -891,286 +891,286 @@ def step_eda():
     
     st.success("🎉 EDA completed! Your data is ready for model training.")
 def step_model_training():
-"""Step 4: Model Training with RandomizedSearchCV and SMOTE for imbalanced data"""
-st.markdown('<div class="section-header">🚀 Model Training & Hyperparameter Optimization</div>', unsafe_allow_html=True)
-
-if st.session_state.processed_df is None:
-    st.error("❌ No processed data available. Please complete the preprocessing step.")
-    return
-
-if st.session_state.target_col is None:
-    st.error("❌ No target column selected. Please go back to data upload step.")
-    return
-
-st.markdown("""
-### 🎯 Training Strategy
-
-We'll train multiple machine learning models with **RandomizedSearchCV** for hyperparameter optimization:
-
-- **RandomizedSearchCV**: Efficiently searches through hyperparameter space
-- **Cross-Validation**: 5-fold CV to ensure robust performance estimates
-- **Multiple Models**: Various algorithms to find the best fit for your data
-- **Hyperparameter Tuning**: Automatic optimization for better results
-- **SMOTE**: Handle imbalanced datasets with synthetic minority oversampling
-""")
-
-# Training configuration
-col1, col2 = st.columns(2)
-with col1:
-    cv_folds = st.selectbox("Cross-Validation Folds", [3, 5, 10], index=1)
-    n_iter = st.selectbox("RandomSearch Iterations", [10, 20, 50], index=1)
-
-with col2:
-    test_size = st.slider("Test Set Size", 0.1, 0.4, 0.2, 0.05)
-    random_state = st.number_input("Random State", value=42, min_value=0)
-
-# SMOTE option for classification
-use_smote = False
-if st.session_state.problem_type == 'classification':
-    use_smote = st.checkbox("🔄 Use SMOTE for imbalanced data", value=True, 
-                           help="SMOTE (Synthetic Minority Oversampling Technique) creates synthetic samples for minority classes")
-
-if st.button("🚀 Start Model Training", type="primary", use_container_width=True):
-    df = st.session_state.processed_df
-    target_col = st.session_state.target_col
-    problem_type = st.session_state.problem_type
+    """Step 4: Model Training with RandomizedSearchCV and SMOTE for imbalanced data"""
+    st.markdown('<div class="section-header">🚀 Model Training & Hyperparameter Optimization</div>', unsafe_allow_html=True)
     
-    # Prepare data
-    X = df.drop(columns=[target_col])
-    y = df[target_col]
+    if st.session_state.processed_df is None:
+        st.error("❌ No processed data available. Please complete the preprocessing step.")
+        return
     
-    # Check for minimum samples per class for stratification
-    from collections import Counter
+    if st.session_state.target_col is None:
+        st.error("❌ No target column selected. Please go back to data upload step.")
+        return
     
-    def can_stratify(y, test_size):
-        class_counts = Counter(y)
-        min_samples_needed = max(2, int(2/test_size))  # At least 2 samples per split
-        return all(count >= min_samples_needed for count in class_counts.values())
+    st.markdown("""
+    ### 🎯 Training Strategy
     
-    # Determine stratification parameter
-    if problem_type == 'classification':
-        stratify_param = y if can_stratify(y, test_size) else None
-        if stratify_param is None:
-            st.warning("⚠️ Cannot use stratification due to very small class sizes. Using random split.")
-    else:
-        stratify_param = None
+    We'll train multiple machine learning models with **RandomizedSearchCV** for hyperparameter optimization:
     
-    # Train-test split
-    X_train, X_test, y_train, y_test = train_test_split(
-        X, y, test_size=test_size, random_state=random_state, 
-        stratify=stratify_param
-    )
+    - **RandomizedSearchCV**: Efficiently searches through hyperparameter space
+    - **Cross-Validation**: 5-fold CV to ensure robust performance estimates
+    - **Multiple Models**: Various algorithms to find the best fit for your data
+    - **Hyperparameter Tuning**: Automatic optimization for better results
+    - **SMOTE**: Handle imbalanced datasets with synthetic minority oversampling
+    """)
     
-    st.info(f"🔍 Training set: {X_train.shape[0]} samples | Test set: {X_test.shape[0]} samples")
+    # Training configuration
+    col1, col2 = st.columns(2)
+    with col1:
+        cv_folds = st.selectbox("Cross-Validation Folds", [3, 5, 10], index=1)
+        n_iter = st.selectbox("RandomSearch Iterations", [10, 20, 50], index=1)
     
-    # Check class balance for classification
-    if problem_type == 'classification':
-        class_counts = Counter(y_train)
-        st.subheader("📊 Class Distribution in Training Set")
+    with col2:
+        test_size = st.slider("Test Set Size", 0.1, 0.4, 0.2, 0.05)
+        random_state = st.number_input("Random State", value=42, min_value=0)
+    
+    # SMOTE option for classification
+    use_smote = False
+    if st.session_state.problem_type == 'classification':
+        use_smote = st.checkbox("🔄 Use SMOTE for imbalanced data", value=True, 
+                               help="SMOTE (Synthetic Minority Oversampling Technique) creates synthetic samples for minority classes")
+    
+    if st.button("🚀 Start Model Training", type="primary", use_container_width=True):
+        df = st.session_state.processed_df
+        target_col = st.session_state.target_col
+        problem_type = st.session_state.problem_type
         
-        col1, col2 = st.columns(2)
-        with col1:
-            for class_val, count in class_counts.items():
-                percentage = (count / len(y_train)) * 100
-                st.write(f"**Class {class_val}**: {count} ({percentage:.1f}%)")
+        # Prepare data
+        X = df.drop(columns=[target_col])
+        y = df[target_col]
         
-        with col2:
-            # Calculate imbalance ratio
-            balance_ratio = min(class_counts.values()) / max(class_counts.values())
-            st.metric("Balance Ratio", f"{balance_ratio:.3f}")
+        # Check for minimum samples per class for stratification
+        from collections import Counter
+        
+        def can_stratify(y, test_size):
+            class_counts = Counter(y)
+            min_samples_needed = max(2, int(2/test_size))  # At least 2 samples per split
+            return all(count >= min_samples_needed for count in class_counts.values())
+        
+        # Determine stratification parameter
+        if problem_type == 'classification':
+            stratify_param = y if can_stratify(y, test_size) else None
+            if stratify_param is None:
+                st.warning("⚠️ Cannot use stratification due to very small class sizes. Using random split.")
+        else:
+            stratify_param = None
+        
+        # Train-test split
+        X_train, X_test, y_train, y_test = train_test_split(
+            X, y, test_size=test_size, random_state=random_state, 
+            stratify=stratify_param
+        )
+        
+        st.info(f"🔍 Training set: {X_train.shape[0]} samples | Test set: {X_test.shape[0]} samples")
+        
+        # Check class balance for classification
+        if problem_type == 'classification':
+            class_counts = Counter(y_train)
+            st.subheader("📊 Class Distribution in Training Set")
             
-            if balance_ratio < 0.5:
-                st.warning("⚠️ Imbalanced dataset detected!")
-                if use_smote:
-                    st.info("🔄 SMOTE will be applied to balance the classes")
-            else:
-                st.success("✅ Dataset is reasonably balanced")
-    
-    # Apply SMOTE if requested and applicable
-    X_train_balanced = X_train.copy()
-    y_train_balanced = y_train.copy()
-    
-    if use_smote and problem_type == 'classification':
-        try:
-            from imblearn.over_sampling import SMOTE
-            
-            st.info("🔄 Applying SMOTE to balance the dataset...")
-            
-            # Check if SMOTE can be applied
-            min_class_count = min(Counter(y_train).values())
-            if min_class_count >= 2:  # SMOTE needs at least 2 samples per class
-                smote = SMOTE(random_state=random_state, k_neighbors=min(5, min_class_count-1))
-                X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
-                
-                # Show new class distribution
-                new_class_counts = Counter(y_train_balanced)
-                st.success(f"✅ SMOTE applied! New training set size: {len(y_train_balanced)} samples")
-                
-                st.subheader("📊 Class Distribution After SMOTE")
-                for class_val, count in new_class_counts.items():
-                    percentage = (count / len(y_train_balanced)) * 100
+            col1, col2 = st.columns(2)
+            with col1:
+                for class_val, count in class_counts.items():
+                    percentage = (count / len(y_train)) * 100
                     st.write(f"**Class {class_val}**: {count} ({percentage:.1f}%)")
-            else:
-                st.warning("⚠️ Cannot apply SMOTE: insufficient samples in minority class")
+            
+            with col2:
+                # Calculate imbalance ratio
+                balance_ratio = min(class_counts.values()) / max(class_counts.values())
+                st.metric("Balance Ratio", f"{balance_ratio:.3f}")
+                
+                if balance_ratio < 0.5:
+                    st.warning("⚠️ Imbalanced dataset detected!")
+                    if use_smote:
+                        st.info("🔄 SMOTE will be applied to balance the classes")
+                else:
+                    st.success("✅ Dataset is reasonably balanced")
+        
+        # Apply SMOTE if requested and applicable
+        X_train_balanced = X_train.copy()
+        y_train_balanced = y_train.copy()
+        
+        if use_smote and problem_type == 'classification':
+            try:
+                from imblearn.over_sampling import SMOTE
+                
+                st.info("🔄 Applying SMOTE to balance the dataset...")
+                
+                # Check if SMOTE can be applied
+                min_class_count = min(Counter(y_train).values())
+                if min_class_count >= 2:  # SMOTE needs at least 2 samples per class
+                    smote = SMOTE(random_state=random_state, k_neighbors=min(5, min_class_count-1))
+                    X_train_balanced, y_train_balanced = smote.fit_resample(X_train, y_train)
+                    
+                    # Show new class distribution
+                    new_class_counts = Counter(y_train_balanced)
+                    st.success(f"✅ SMOTE applied! New training set size: {len(y_train_balanced)} samples")
+                    
+                    st.subheader("📊 Class Distribution After SMOTE")
+                    for class_val, count in new_class_counts.items():
+                        percentage = (count / len(y_train_balanced)) * 100
+                        st.write(f"**Class {class_val}**: {count} ({percentage:.1f}%)")
+                else:
+                    st.warning("⚠️ Cannot apply SMOTE: insufficient samples in minority class")
+                    use_smote = False
+            
+            except ImportError:
+                st.error("❌ SMOTE requires imbalanced-learn package. Install with: pip install imbalanced-learn")
+                use_smote = False
+            except Exception as e:
+                st.error(f"❌ Error applying SMOTE: {str(e)}")
                 use_smote = False
         
-        except ImportError:
-            st.error("❌ SMOTE requires imbalanced-learn package. Install with: pip install imbalanced-learn")
-            use_smote = False
-        except Exception as e:
-            st.error(f"❌ Error applying SMOTE: {str(e)}")
-            use_smote = False
-    
-    # Get models and parameters
-    models_params = get_ml_models_with_params(problem_type)
-    results = {}
-    
-    # Feature scaling
-    scaler = StandardScaler()
-    X_train_scaled = scaler.fit_transform(X_train_balanced)
-    X_test_scaled = scaler.transform(X_test)
-    
-    # Progress tracking
-    total_models = len(models_params)
-    progress_bar = st.progress(0)
-    status_text = st.empty()
-    
-    # Training container
-    training_container = st.container()
-    
-    for idx, (name, config) in enumerate(models_params.items()):
-        with training_container:
-            st.markdown(f'<div class="step-header">🔄 Training {name}...</div>', unsafe_allow_html=True)
-            
-            status_text.text(f"Training {name} with RandomizedSearchCV... ({idx+1}/{total_models})")
-            
-            try:
-                # Use scaled data for algorithms that need it
-                if name in ['SVC', 'SVR', 'LogisticRegression']:
-                    X_train_use = X_train_scaled
-                    X_test_use = X_test_scaled
-                else:
-                    X_train_use = X_train_balanced
-                    X_test_use = X_test
+        # Get models and parameters
+        models_params = get_ml_models_with_params(problem_type)
+        results = {}
+        
+        # Feature scaling
+        scaler = StandardScaler()
+        X_train_scaled = scaler.fit_transform(X_train_balanced)
+        X_test_scaled = scaler.transform(X_test)
+        
+        # Progress tracking
+        total_models = len(models_params)
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        # Training container
+        training_container = st.container()
+        
+        for idx, (name, config) in enumerate(models_params.items()):
+            with training_container:
+                st.markdown(f'<div class="step-header">🔄 Training {name}...</div>', unsafe_allow_html=True)
                 
-                # RandomizedSearchCV
-                scoring = 'accuracy' if problem_type == 'classification' else 'r2'
+                status_text.text(f"Training {name} with RandomizedSearchCV... ({idx+1}/{total_models})")
                 
-                # For cross-validation with SMOTE, we need to be careful about class sizes
-                cv_folds_use = cv_folds
-                if problem_type == 'classification' and use_smote:
-                    min_class_size = min(Counter(y_train_balanced).values())
-                    cv_folds_use = min(cv_folds, min_class_size)
-                
-                random_search = RandomizedSearchCV(
-                    estimator=config['model'],
-                    param_distributions=config['params'],
-                    n_iter=n_iter,
-                    cv=cv_folds_use,
-                    scoring=scoring,
-                    random_state=random_state,
-                    n_jobs=-1
-                )
-                
-                # Fit the model
-                random_search.fit(X_train_use, y_train_balanced)
-                
-                # Best model predictions
-                best_model = random_search.best_estimator_
-                y_pred = best_model.predict(X_test_use)
-                
-                # Calculate metrics
-                if problem_type == 'classification':
-                    accuracy = accuracy_score(y_test, y_pred)
-                    cv_scores = cross_val_score(best_model, X_train_use, y_train_balanced, cv=cv_folds_use, scoring='accuracy')
+                try:
+                    # Use scaled data for algorithms that need it
+                    if name in ['SVC', 'SVR', 'LogisticRegression']:
+                        X_train_use = X_train_scaled
+                        X_test_use = X_test_scaled
+                    else:
+                        X_train_use = X_train_balanced
+                        X_test_use = X_test
                     
-                    # Calculate additional metrics for imbalanced data
-                    from sklearn.metrics import precision_score, recall_score, f1_score
-                    precision = precision_score(y_test, y_pred, average='weighted')
-                    recall = recall_score(y_test, y_pred, average='weighted')
-                    f1 = f1_score(y_test, y_pred, average='weighted')
+                    # RandomizedSearchCV
+                    scoring = 'accuracy' if problem_type == 'classification' else 'r2'
                     
-                    results[name] = {
-                        'model': best_model,
-                        'best_params': random_search.best_params_,
-                        'best_score': random_search.best_score_,
-                        'accuracy': accuracy,
-                        'precision': precision,
-                        'recall': recall,
-                        'f1_score': f1,
-                        'cv_mean': cv_scores.mean(),
-                        'cv_std': cv_scores.std(),
-                        'y_pred': y_pred,
-                        'used_smote': use_smote
-                    }
+                    # For cross-validation with SMOTE, we need to be careful about class sizes
+                    cv_folds_use = cv_folds
+                    if problem_type == 'classification' and use_smote:
+                        min_class_size = min(Counter(y_train_balanced).values())
+                        cv_folds_use = min(cv_folds, min_class_size)
                     
-                    # Show results
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Best CV Score", f"{random_search.best_score_:.4f}")
-                    with col2:
-                        st.metric("Test Accuracy", f"{accuracy:.4f}")
-                    with col3:
-                        st.metric("F1 Score", f"{f1:.4f}")
-                    with col4:
-                        st.metric("CV Mean ± Std", f"{cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
+                    random_search = RandomizedSearchCV(
+                        estimator=config['model'],
+                        param_distributions=config['params'],
+                        n_iter=n_iter,
+                        cv=cv_folds_use,
+                        scoring=scoring,
+                        random_state=random_state,
+                        n_jobs=-1
+                    )
                     
-                else:
-                    mse = mean_squared_error(y_test, y_pred)
-                    r2 = r2_score(y_test, y_pred)
-                    mae = mean_absolute_error(y_test, y_pred)
-                    cv_scores = cross_val_score(best_model, X_train_use, y_train_balanced, cv=cv_folds_use, scoring='r2')
-                    results[name] = {
-                        'model': best_model,
-                        'best_params': random_search.best_params_,
-                        'best_score': random_search.best_score_,
-                        'mse': mse,
-                        'r2': r2,
-                        'mae': mae,
-                        'cv_mean': cv_scores.mean(),
-                        'cv_std': cv_scores.std(),
-                        'y_pred': y_pred,
-                        'used_smote': use_smote
-                    }
+                    # Fit the model
+                    random_search.fit(X_train_use, y_train_balanced)
                     
-                    # Show results
-                    col1, col2, col3, col4 = st.columns(4)
-                    with col1:
-                        st.metric("Best CV R²", f"{random_search.best_score_:.4f}")
-                    with col2:
-                        st.metric("Test R²", f"{r2:.4f}")
-                    with col3:
-                        st.metric("MSE", f"{mse:.4f}")
-                    with col4:
-                        st.metric("MAE", f"{mae:.4f}")
+                    # Best model predictions
+                    best_model = random_search.best_estimator_
+                    y_pred = best_model.predict(X_test_use)
+                    
+                    # Calculate metrics
+                    if problem_type == 'classification':
+                        accuracy = accuracy_score(y_test, y_pred)
+                        cv_scores = cross_val_score(best_model, X_train_use, y_train_balanced, cv=cv_folds_use, scoring='accuracy')
+                        
+                        # Calculate additional metrics for imbalanced data
+                        from sklearn.metrics import precision_score, recall_score, f1_score
+                        precision = precision_score(y_test, y_pred, average='weighted')
+                        recall = recall_score(y_test, y_pred, average='weighted')
+                        f1 = f1_score(y_test, y_pred, average='weighted')
+                        
+                        results[name] = {
+                            'model': best_model,
+                            'best_params': random_search.best_params_,
+                            'best_score': random_search.best_score_,
+                            'accuracy': accuracy,
+                            'precision': precision,
+                            'recall': recall,
+                            'f1_score': f1,
+                            'cv_mean': cv_scores.mean(),
+                            'cv_std': cv_scores.std(),
+                            'y_pred': y_pred,
+                            'used_smote': use_smote
+                        }
+                        
+                        # Show results
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Best CV Score", f"{random_search.best_score_:.4f}")
+                        with col2:
+                            st.metric("Test Accuracy", f"{accuracy:.4f}")
+                        with col3:
+                            st.metric("F1 Score", f"{f1:.4f}")
+                        with col4:
+                            st.metric("CV Mean ± Std", f"{cv_scores.mean():.4f} ± {cv_scores.std():.4f}")
+                        
+                    else:
+                        mse = mean_squared_error(y_test, y_pred)
+                        r2 = r2_score(y_test, y_pred)
+                        mae = mean_absolute_error(y_test, y_pred)
+                        cv_scores = cross_val_score(best_model, X_train_use, y_train_balanced, cv=cv_folds_use, scoring='r2')
+                        results[name] = {
+                            'model': best_model,
+                            'best_params': random_search.best_params_,
+                            'best_score': random_search.best_score_,
+                            'mse': mse,
+                            'r2': r2,
+                            'mae': mae,
+                            'cv_mean': cv_scores.mean(),
+                            'cv_std': cv_scores.std(),
+                            'y_pred': y_pred,
+                            'used_smote': use_smote
+                        }
+                        
+                        # Show results
+                        col1, col2, col3, col4 = st.columns(4)
+                        with col1:
+                            st.metric("Best CV R²", f"{random_search.best_score_:.4f}")
+                        with col2:
+                            st.metric("Test R²", f"{r2:.4f}")
+                        with col3:
+                            st.metric("MSE", f"{mse:.4f}")
+                        with col4:
+                            st.metric("MAE", f"{mae:.4f}")
+                    
+                    # Show best parameters
+                    st.subheader("🔧 Best Hyperparameters")
+                    param_cols = st.columns(min(3, len(random_search.best_params_)))
+                    for i, (param, value) in enumerate(random_search.best_params_.items()):
+                        with param_cols[i % len(param_cols)]:
+                            st.write(f"**{param}**: {value}")
+                    
+                    st.success(f"✅ {name} training completed!")
+                    
+                except Exception as e:
+                    st.error(f"❌ Error training {name}: {str(e)}")
+                    continue
                 
-                # Show best parameters
-                st.subheader("🔧 Best Hyperparameters")
-                param_cols = st.columns(min(3, len(random_search.best_params_)))
-                for i, (param, value) in enumerate(random_search.best_params_.items()):
-                    with param_cols[i % len(param_cols)]:
-                        st.write(f"**{param}**: {value}")
-                
-                st.success(f"✅ {name} training completed!")
-                
-            except Exception as e:
-                st.error(f"❌ Error training {name}: {str(e)}")
-                continue
-            
-            progress_bar.progress((idx + 1) / total_models)
-            time.sleep(0.5)  # Small delay for better UX
-    
-    status_text.text("✅ All models trained successfully!")
-    st.session_state.results = results
-    st.session_state.X_train = X_train
-    st.session_state.X_test = X_test
-    st.session_state.y_train = y_train
-    st.session_state.y_test = y_test
-    st.session_state.scaler = scaler
-    st.session_state.used_smote = use_smote
-    
-    st.balloons()
-    st.success("🎉 Model training completed! Ready for evaluation.")
+                progress_bar.progress((idx + 1) / total_models)
+                time.sleep(0.5)  # Small delay for better UX
+        
+        status_text.text("✅ All models trained successfully!")
+        st.session_state.results = results
+        st.session_state.X_train = X_train
+        st.session_state.X_test = X_test
+        st.session_state.y_train = y_train
+        st.session_state.y_test = y_test
+        st.session_state.scaler = scaler
+        st.session_state.used_smote = use_smote
+        
+        st.balloons()
+        st.success("🎉 Model training completed! Ready for evaluation.")
 def step_model_evaluation():
     """Step 5: Model Evaluation and Comparison with support for imbalanced datasets"""
     st.markdown('<div class="section-header">📈 Model Evaluation & Comparison</div>', unsafe_allow_html=True)
