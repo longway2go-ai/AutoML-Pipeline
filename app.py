@@ -737,7 +737,7 @@ def step_data_upload():
                 unique_values = df[target_col].nunique()
                 total_values = len(df[target_col])
                 
-                if df[target_col].dtype in ['int64', 'float64']:
+                if df[target_col].dtype in ['int32', 'float32','int64','float64']:
                     if unique_values > 10 and unique_values > total_values * 0.05:
                         problem_type = 'regression'
                     else:
