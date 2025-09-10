@@ -414,6 +414,9 @@ from sklearn.preprocessing import StandardScaler, LabelEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
 from sklearn.metrics import mean_squared_error, r2_score, mean_absolute_error
+import plotly.express as px
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # ML Models
 from sklearn.linear_model import LogisticRegression, LinearRegression, Ridge, Lasso
@@ -426,6 +429,15 @@ from sklearn.svm import SVC, SVR
 from sklearn.neighbors import KNeighborsClassifier, KNeighborsRegressor
 from sklearn.naive_bayes import GaussianNB
 from sklearn.linear_model import SGDClassifier, SGDRegressor
+
+from sklearn.feature_selection import (
+    SelectKBest, 
+    f_classif, 
+    f_regression,
+    VarianceThreshold,
+    mutual_info_classif,
+    mutual_info_regression
+)
 
 import time
 import random
@@ -688,9 +700,10 @@ def step_data_upload():
     **What happens next:**
     1. **EDA**: Comprehensive data analysis and visualization
     2. **Preprocessing**: Automatic data cleaning and preparation
-    3. **Model Training**: Multiple ML models with hyperparameter tuning
-    4. **Evaluation**: Performance comparison and best model selection
-    5. **Results**: Detailed insights and model information
+    3. **Feature Selection**: Optional intelligent feature selection (NEW!)
+    4. **Model Training**: Multiple ML models with hyperparameter tuning
+    5. **Evaluation**: Performance comparison and best model selection
+    6. **Results**: Detailed insights and model information
     """)
     
     uploaded_file = st.file_uploader(
@@ -748,8 +761,9 @@ def step_data_upload():
                 st.session_state.problem_type = problem_type
                 st.info(f"🔍 Detected problem type: **{problem_type.title()}**")
 
+
 def step_preprocessing():
-    """Step 2: Data Preprocessing"""
+    """Step 2: Data Preprocessing with Optional Feature Selection"""
     st.markdown('<div class="section-header">⚙️ Data Preprocessing</div>', unsafe_allow_html=True)
     
     if st.session_state.df is None:
@@ -768,17 +782,85 @@ def step_preprocessing():
     This ensures your data is clean and ready for analysis and modeling.
     """)
     
+    # Feature Selection Option
+    st.markdown("---")
+    st.markdown("### 🎯 Feature Selection Options")
+    
+    enable_feature_selection = st.checkbox(
+        "Enable Feature Selection",
+        value=False,
+        help="Automatically select the most important features to improve model performance and reduce overfitting"
+    )
+    
+    feature_selection_method = None
+    num_features = None
+    
+    if enable_feature_selection:
+        st.markdown("""
+        **Feature Selection Benefits:**
+        - ✨ Improved model performance
+        - 🚀 Faster training time
+        - 📉 Reduced overfitting
+        - 💡 Better interpretability
+        """)
+        
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            feature_selection_method = st.selectbox(
+                "Select Feature Selection Method:",
+                ["SelectKBest", "Variance Threshold", "Mutual Information"],
+                help="Choose the method for selecting important features"
+            )
+        
+        with col2:
+            if feature_selection_method == "SelectKBest":
+                max_features = st.session_state.df.shape[1] - 1  # Exclude target column
+                num_features = st.slider(
+                    "Number of features to select:",
+                    min_value=1,
+                    max_value=max_features,
+                    value=min(10, max_features),
+                    help="Select the number of top features to keep"
+                )
+            elif feature_selection_method == "Variance Threshold":
+                variance_threshold = st.slider(
+                    "Variance threshold:",
+                    min_value=0.0,
+                    max_value=1.0,
+                    value=0.1,
+                    step=0.01,
+                    help="Features with variance below this threshold will be removed"
+                )
+            else:  # Mutual Information
+                max_features = st.session_state.df.shape[1] - 1
+                num_features = st.slider(
+                    "Number of features to select:",
+                    min_value=1,
+                    max_value=max_features,
+                    value=min(10, max_features),
+                    help="Select the number of top features based on mutual information"
+                )
+    
+    # Store feature selection preferences in session state
+    st.session_state.enable_feature_selection = enable_feature_selection
+    st.session_state.feature_selection_method = feature_selection_method
+    st.session_state.num_features = num_features
+    if enable_feature_selection and feature_selection_method == "Variance Threshold":
+        st.session_state.variance_threshold = variance_threshold
+    
     if st.button("🚀 Start Preprocessing", type="primary", use_container_width=True):
         df = st.session_state.df.copy()
         preprocessing_steps = []
         
         # Progress tracking
+        total_steps = 6 if enable_feature_selection else 5
         progress_bar = st.progress(0)
         status_text = st.empty()
         
         # Step 1: Handle missing values
         status_text.text("🔧 Handling missing values...")
-        progress_bar.progress(0.2)
+        progress_bar.progress(1/total_steps)
         
         numeric_cols = df.select_dtypes(include=[np.number]).columns
         categorical_cols = df.select_dtypes(include=['object', 'category']).columns
@@ -801,7 +883,7 @@ def step_preprocessing():
         
         # Step 2: Data type optimization
         status_text.text("🎯 Optimizing data types...")
-        progress_bar.progress(0.4)
+        progress_bar.progress(2/total_steps)
         
         # Convert object columns that look like numbers
         for col in categorical_cols:
@@ -816,7 +898,7 @@ def step_preprocessing():
         
         # Step 3: Encode categorical variables
         status_text.text("🏷️ Encoding categorical variables...")
-        progress_bar.progress(0.6)
+        progress_bar.progress(3/total_steps)
         
         label_encoders = {}
         for col in df.select_dtypes(include=['object', 'category']).columns:
@@ -829,7 +911,7 @@ def step_preprocessing():
         
         # Step 4: Remove duplicates
         status_text.text("🗑️ Removing duplicates...")
-        progress_bar.progress(0.8)
+        progress_bar.progress(4/total_steps)
         
         initial_rows = len(df)
         df = df.drop_duplicates()
@@ -839,7 +921,85 @@ def step_preprocessing():
         
         time.sleep(1)
         
-        # Step 5: Final validation
+        # Step 5: Feature Selection (if enabled)
+        selected_features = None
+        feature_scores = None
+        
+        if enable_feature_selection:
+            status_text.text("🎯 Performing feature selection...")
+            progress_bar.progress(5/total_steps)
+            
+            target_col = st.session_state.target_col
+            X = df.drop(columns=[target_col])
+            y = df[target_col]
+            
+            try:
+                if feature_selection_method == "SelectKBest":
+                    from sklearn.feature_selection import SelectKBest, f_classif, f_regression
+                    
+                    # Choose scoring function based on problem type
+                    if st.session_state.problem_type == 'regression':
+                        selector = SelectKBest(score_func=f_regression, k=num_features)
+                    else:
+                        selector = SelectKBest(score_func=f_classif, k=num_features)
+                    
+                    X_selected = selector.fit_transform(X, y)
+                    selected_features = X.columns[selector.get_support()].tolist()
+                    feature_scores = selector.scores_[selector.get_support()]
+                    
+                    # Update dataframe with selected features
+                    df = pd.concat([pd.DataFrame(X_selected, columns=selected_features), y.reset_index(drop=True)], axis=1)
+                    preprocessing_steps.append(f"✅ Selected {len(selected_features)} best features using SelectKBest")
+                
+                elif feature_selection_method == "Variance Threshold":
+                    from sklearn.feature_selection import VarianceThreshold
+                    
+                    # Only apply to numeric columns
+                    numeric_features = X.select_dtypes(include=[np.number]).columns
+                    if len(numeric_features) > 0:
+                        selector = VarianceThreshold(threshold=st.session_state.variance_threshold)
+                        X_numeric = X[numeric_features]
+                        X_selected_numeric = selector.fit_transform(X_numeric)
+                        selected_numeric_features = numeric_features[selector.get_support()].tolist()
+                        
+                        # Keep non-numeric features
+                        non_numeric_features = X.select_dtypes(exclude=[np.number]).columns.tolist()
+                        selected_features = selected_numeric_features + non_numeric_features
+                        
+                        # Update dataframe
+                        df = pd.concat([X[selected_features], y.reset_index(drop=True)], axis=1)
+                        preprocessing_steps.append(f"✅ Removed features with variance < {st.session_state.variance_threshold}")
+                    else:
+                        preprocessing_steps.append("⚠️ No numeric features found for variance threshold selection")
+                
+                elif feature_selection_method == "Mutual Information":
+                    from sklearn.feature_selection import SelectKBest, mutual_info_classif, mutual_info_regression
+                    
+                    # Choose scoring function based on problem type
+                    if st.session_state.problem_type == 'regression':
+                        selector = SelectKBest(score_func=mutual_info_regression, k=num_features)
+                    else:
+                        selector = SelectKBest(score_func=mutual_info_classif, k=num_features)
+                    
+                    X_selected = selector.fit_transform(X, y)
+                    selected_features = X.columns[selector.get_support()].tolist()
+                    feature_scores = selector.scores_[selector.get_support()]
+                    
+                    # Update dataframe with selected features
+                    df = pd.concat([pd.DataFrame(X_selected, columns=selected_features), y.reset_index(drop=True)], axis=1)
+                    preprocessing_steps.append(f"✅ Selected {len(selected_features)} features using Mutual Information")
+                
+                # Store feature selection results
+                st.session_state.selected_features = selected_features
+                st.session_state.feature_scores = feature_scores
+                
+            except Exception as e:
+                st.warning(f"⚠️ Feature selection failed: {str(e)}. Proceeding without feature selection.")
+                preprocessing_steps.append("⚠️ Feature selection skipped due to error")
+            
+            time.sleep(1)
+        
+        # Final step: Validation
         status_text.text("✨ Finalizing preprocessing...")
         progress_bar.progress(1.0)
         
@@ -874,127 +1034,87 @@ def step_preprocessing():
         for step in preprocessing_steps:
             st.write(step)
         
+        # Show feature selection results if enabled
+        if enable_feature_selection and selected_features is not None:
+            st.subheader("🎯 Feature Selection Results")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.write("**Selected Features:**")
+                for i, feature in enumerate(selected_features):
+                    if feature_scores is not None:
+                        st.write(f"• {feature} (Score: {feature_scores[i]:.3f})")
+                    else:
+                        st.write(f"• {feature}")
+            
+            with col2:
+                original_features = st.session_state.df.shape[1] - 1  # Exclude target
+                st.write(f"**Original Features**: {original_features}")
+                st.write(f"**Selected Features**: {len(selected_features)}")
+                reduction_pct = ((original_features - len(selected_features)) / original_features) * 100
+                st.write(f"**Dimensionality Reduction**: {reduction_pct:.1f}%")
+        
         # Show processed data preview
         st.subheader("👀 Processed Data Preview")
         st.dataframe(df.head(), use_container_width=True)
+        
+        # Show feature importance plot if available
+        if enable_feature_selection and selected_features is not None and feature_scores is not None:
+            st.subheader("📊 Feature Importance Scores")
+            
+            import matplotlib.pyplot as plt
+            fig, ax = plt.subplots(figsize=(10, max(6, len(selected_features) * 0.3)))
+            
+            # Create horizontal bar plot
+            y_pos = np.arange(len(selected_features))
+            ax.barh(y_pos, feature_scores, color='skyblue')
+            ax.set_yticks(y_pos)
+            ax.set_yticklabels(selected_features)
+            ax.set_xlabel('Feature Score')
+            ax.set_title(f'Top {len(selected_features)} Features - {feature_selection_method}')
+            ax.grid(axis='x', alpha=0.3)
+            
+            # Sort by score for better visualization
+            sorted_indices = np.argsort(feature_scores)
+            ax.barh(y_pos, feature_scores[sorted_indices], color='skyblue')
+            ax.set_yticklabels([selected_features[i] for i in sorted_indices])
+            
+            plt.tight_layout()
+            st.pyplot(fig)
 
-def step_preprocessing():
-    """Step 2: Data Preprocessing"""
-    st.markdown('<div class="section-header">⚙️ Data Preprocessing</div>', unsafe_allow_html=True)
+
+# Additional helper function for feature selection visualization
+def plot_feature_importance(features, scores, method_name):
+    """Create a feature importance plot"""
+    import matplotlib.pyplot as plt
     
-    if st.session_state.df is None:
-        st.error("❌ No data loaded. Please go back to the Data Upload step.")
-        return
+    fig, ax = plt.subplots(figsize=(10, max(6, len(features) * 0.3)))
     
-    if st.button("🚀 Start Preprocessing", type="primary", use_container_width=True):
-        df = st.session_state.df.copy()
-        preprocessing_steps = []
-        
-        # Progress tracking
-        progress_bar = st.progress(0)
-        status_text = st.empty()
-        
-        # Step 1: Handle missing values
-        status_text.text("🔧 Handling missing values...")
-        progress_bar.progress(0.2)
-        
-        numeric_cols = df.select_dtypes(include=[np.number]).columns
-        categorical_cols = df.select_dtypes(include=['object', 'category']).columns
-        
-        # Fill numeric missing values with mean
-        if len(numeric_cols) > 0:
-            numeric_imputer = SimpleImputer(strategy='mean')
-            df[numeric_cols] = numeric_imputer.fit_transform(df[numeric_cols])
-            preprocessing_steps.append(f"✅ Filled {len(numeric_cols)} numeric columns with mean values")
-        
-        # Fill categorical missing values with mode
-        if len(categorical_cols) > 0:
-            for col in categorical_cols:
-                if df[col].isnull().sum() > 0:
-                    mode_value = df[col].mode()[0] if not df[col].mode().empty else 'Unknown'
-                    df[col].fillna(mode_value, inplace=True)
-            preprocessing_steps.append(f"✅ Filled {len(categorical_cols)} categorical columns with mode values")
-        
-        time.sleep(1)
-        
-        # Step 2: Data type optimization
-        status_text.text("🎯 Optimizing data types...")
-        progress_bar.progress(0.4)
-        
-        # Convert object columns that look like numbers
-        for col in categorical_cols:
-            try:
-                if df[col].astype(str).str.replace('.', '').str.replace('-', '').str.isdigit().all():
-                    df[col] = pd.to_numeric(df[col])
-                    preprocessing_steps.append(f"✅ Converted '{col}' from object to numeric")
-            except:
-                pass
-        
-        time.sleep(1)
-        
-        # Step 3: Encode categorical variables
-        status_text.text("🏷️ Encoding categorical variables...")
-        progress_bar.progress(0.6)
-        
-        label_encoders = {}
-        for col in df.select_dtypes(include=['object', 'category']).columns:
-            le = LabelEncoder()
-            df[col] = le.fit_transform(df[col].astype(str))
-            label_encoders[col] = le
-            preprocessing_steps.append(f"✅ Label encoded categorical column: '{col}'")
-        
-        time.sleep(1)
-        
-        # Step 4: Remove duplicates
-        status_text.text("🗑️ Removing duplicates...")
-        progress_bar.progress(0.8)
-        
-        initial_rows = len(df)
-        df = df.drop_duplicates()
-        removed_duplicates = initial_rows - len(df)
-        if removed_duplicates > 0:
-            preprocessing_steps.append(f"✅ Removed {removed_duplicates} duplicate rows")
-        
-        time.sleep(1)
-        
-        # Step 5: Final validation
-        status_text.text("✨ Finalizing preprocessing...")
-        progress_bar.progress(1.0)
-        
-        st.session_state.processed_df = df
-        
-        # Display results
-        st.success("🎉 Preprocessing completed successfully!")
-        
-        # Show preprocessing summary
-        st.markdown('<div class="step-header">📋 Preprocessing Summary</div>', unsafe_allow_html=True)
-        
-        col1, col2 = st.columns(2)
-        with col1:
-            st.subheader("Before Preprocessing")
-            original_df = st.session_state.df
-            st.write(f"**Rows**: {original_df.shape[0]}")
-            st.write(f"**Columns**: {original_df.shape[1]}")
-            st.write(f"**Missing Values**: {original_df.isnull().sum().sum()}")
-            st.write(f"**Duplicates**: {original_df.duplicated().sum()}")
-            st.write(f"**Data Types**: {original_df.dtypes.value_counts().to_dict()}")
-        
-        with col2:
-            st.subheader("After Preprocessing")
-            st.write(f"**Rows**: {df.shape[0]}")
-            st.write(f"**Columns**: {df.shape[1]}")
-            st.write(f"**Missing Values**: {df.isnull().sum().sum()}")
-            st.write(f"**Duplicates**: {df.duplicated().sum()}")
-            st.write(f"**Data Types**: {df.dtypes.value_counts().to_dict()}")
-        
-        # Show steps taken
-        st.subheader("🔧 Steps Performed")
-        for step in preprocessing_steps:
-            st.write(step)
-        
-        # Show processed data preview
-        st.subheader("👀 Processed Data Preview")
-        st.dataframe(df.head(), use_container_width=True)
+    # Sort features by score
+    sorted_indices = np.argsort(scores)[::-1]  # Descending order
+    sorted_features = [features[i] for i in sorted_indices]
+    sorted_scores = scores[sorted_indices]
+    
+    # Create horizontal bar plot
+    y_pos = np.arange(len(sorted_features))
+    bars = ax.barh(y_pos, sorted_scores, color='steelblue', alpha=0.7)
+    
+    # Customize plot
+    ax.set_yticks(y_pos)
+    ax.set_yticklabels(sorted_features, fontsize=10)
+    ax.set_xlabel('Importance Score', fontsize=12)
+    ax.set_title(f'Feature Importance - {method_name}', fontsize=14, fontweight='bold')
+    ax.grid(axis='x', alpha=0.3)
+    
+    # Add value labels on bars
+    for i, (bar, score) in enumerate(zip(bars, sorted_scores)):
+        ax.text(bar.get_width() + max(sorted_scores) * 0.01, 
+                bar.get_y() + bar.get_height()/2, 
+                f'{score:.3f}', 
+                va='center', ha='left', fontsize=9)
+    
+    plt.tight_layout()
+    return fig
 
 def get_ml_models_with_params(problem_type):
     """Get ML models with parameter distributions for RandomizedSearchCV"""
